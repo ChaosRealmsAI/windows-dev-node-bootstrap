@@ -66,6 +66,30 @@ try {
         Write-WindowsDevNodeUtf8NoBom -Path $paths.SshConfig -Content $cleanConfig
     }
 
+    if ($null -ne $account) {
+        $userKeyPaths = Get-WindowsDevNodeUserKeyPaths -User $account
+        $recordedKeyPath = [string](Get-OptionalStateValue -State $state -Name 'authorizedKeysPath' -DefaultValue '')
+        if (-not [string]::IsNullOrWhiteSpace($recordedKeyPath) -and
+            -not $recordedKeyPath.Equals($userKeyPaths.AuthorizedKeys, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'The recorded authorized_keys path does not match the managed account profile.'
+        }
+        if (Test-Path -LiteralPath $userKeyPaths.AuthorizedKeys -PathType Leaf) {
+            if (-not (Test-Path -LiteralPath $paths.PublicKey -PathType Leaf)) {
+                throw 'The bundled public key is unavailable, so the managed user key was not removed.'
+            }
+            $installedKey = (Get-Content -LiteralPath $userKeyPaths.AuthorizedKeys -Raw).Trim()
+            $expectedKey = (Get-Content -LiteralPath $paths.PublicKey -Raw).Trim()
+            if ($installedKey -cne $expectedKey) {
+                throw 'The managed account authorized_keys file was modified and was not removed.'
+            }
+            Remove-Item -LiteralPath $userKeyPaths.AuthorizedKeys -Force
+        }
+        if ((Test-Path -LiteralPath $userKeyPaths.SshDirectory -PathType Container) -and
+            @(Get-ChildItem -LiteralPath $userKeyPaths.SshDirectory -Force).Count -eq 0) {
+            Remove-Item -LiteralPath $userKeyPaths.SshDirectory -Force
+        }
+    }
+
     $managedRule = Get-NetFirewallRule -Name $script:WindowsDevNodeFirewallRuleName -ErrorAction SilentlyContinue
     if ($null -ne $managedRule) {
         Remove-NetFirewallRule -Name $script:WindowsDevNodeFirewallRuleName

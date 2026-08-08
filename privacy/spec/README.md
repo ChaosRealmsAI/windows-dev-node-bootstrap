@@ -2,7 +2,7 @@
 
 ## Product result
 
-An owner downloads or clones this project on a Windows 11 development machine, runs one stable entry point, approves one UAC prompt, and receives a sanitized readiness report. A trusted controller on the same private LAN can then authenticate as a dedicated standard user with a pre-provisioned SSH public key. No password or private key is exchanged in chat.
+An owner downloads or clones this project on a Windows 10 or Windows 11 development machine, runs one stable entry point, approves one UAC prompt, and receives a sanitized readiness report. A trusted controller on the same private LAN can then authenticate as a dedicated standard user with a pre-provisioned SSH public key. No password or private key is exchanged in chat.
 
 ## User path
 
@@ -18,7 +18,8 @@ An owner downloads or clones this project on a Windows 11 development machine, r
 
 - The repository contains one public key only. The matching private key remains outside the repository with owner-only filesystem permissions.
 - The managed Windows account is never added to the local Administrators group.
-- The account password is generated with a cryptographic RNG, is never printed or persisted, and cannot be used over SSH because the account-specific SSH rule requires `publickey`.
+- The account password is generated with a cryptographic RNG, is marked required, is never printed or persisted, and cannot be used over SSH because the account-specific SSH rule requires `publickey`.
+- The standard account public key uses the Microsoft-documented `%USERPROFILE%\.ssh\authorized_keys` location with an explicit account/System/Administrators ACL; the legacy `%ProgramData%\WindowsDevNode\authorized_keys` path is removed during repair.
 - The managed firewall rule allows TCP 22 only from `LocalSubnet` and only on a Private profile.
 - If the active default route is Public, the installer records its interface and prior category before changing it to Private; uninstall restores only that recorded interface.
 - The installer disables the broad in-box OpenSSH firewall rule while this project is active and records enough prior state to restore its enabled/disabled state on uninstall.
@@ -28,6 +29,7 @@ An owner downloads or clones this project on a Windows 11 development machine, r
 ## Managed resources
 
 - Local account: `codexdev`, with an exact project ownership description.
+- Standard-user key: the exact project public key at the managed account's `.ssh\authorized_keys` path.
 - Firewall rule: `WindowsDevNode-SSH-In-TCP`.
 - State directory: `%ProgramData%\WindowsDevNode`.
 - OpenSSH config: one block delimited by `# BEGIN WindowsDevNode managed block` and `# END WindowsDevNode managed block`.
@@ -43,6 +45,6 @@ An owner downloads or clones this project on a Windows 11 development machine, r
 
 ## Version and non-goals
 
-- Contract version: `0.1.2`.
-- Target: an owner-operated Windows 11 machine on a trusted private LAN.
+- Contract version: `0.1.3`.
+- Target: an owner-operated Windows 10 or Windows 11 machine on a trusted private LAN.
 - RDP/GUI control, WSL2, Codex installation, Wake-on-LAN, public internet access, and automatic sign-in are separate follow-up slices after SSH bootstrap is proven on the real machine.

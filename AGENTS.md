@@ -1,6 +1,6 @@
 # Windows Dev Node Bootstrap
 
-This project turns one owned Windows 11 machine into a LAN-only development node that can be reached with a dedicated SSH key.
+This project turns one owned Windows 10 or Windows 11 machine into a LAN-only development node that can be reached with a dedicated SSH key.
 
 ## Boundaries
 
@@ -8,7 +8,7 @@ This project turns one owned Windows 11 machine into a LAN-only development node
 - Windows implementation scripts live under `scripts/windows/`; validation scripts live under `tests/`.
 - Never commit a private key, password, token, device address, MAC address, serial number, or raw machine report.
 - The managed account stays a standard local user. Administrator access, RDP, WSL, public-network exposure, and third-party remote-control software are outside v0.1.
-- The installer may manage only the `codexdev` account, `WindowsDevNode-SSH-In-TCP` firewall rule, the marked `sshd_config` block, and `%ProgramData%\WindowsDevNode`.
+- The installer may manage only the `codexdev` account and its exact `.ssh\authorized_keys`, the `WindowsDevNode-SSH-In-TCP` firewall rule, the marked `sshd_config` block, and `%ProgramData%\WindowsDevNode`.
 - Repeated installation must be idempotent. Uninstall must not remove OpenSSH or overwrite unrelated SSH configuration.
 
 ## Commands
@@ -22,7 +22,7 @@ pwsh -NoProfile -File tests/Validate-Project.ps1
 powershell.exe -NoProfile -File tests/Validate-Project.ps1
 ```
 
-On an owned Windows 11 test machine:
+On an owned Windows 10 or Windows 11 test machine:
 
 ```powershell
 # Install/start

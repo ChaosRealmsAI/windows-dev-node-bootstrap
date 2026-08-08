@@ -70,12 +70,18 @@ foreach ($requiredFragment in @(
     '-RemoteAddress LocalSubnet',
     'AuthenticationMethods publickey',
     'PasswordAuthentication no',
+    'AuthorizedKeysFile .ssh/authorized_keys',
+    'Get-WindowsDevNodeUserKeyPaths',
     'PAIRING REPORT BEGIN',
     'PAIRING REPORT END'
 )) {
     if (($installer + $common) -notmatch [regex]::Escape($requiredFragment)) {
         throw "Missing security contract fragment: $requiredFragment"
     }
+}
+
+if ($common.Contains('AuthorizedKeysFile __PROGRAMDATA__/WindowsDevNode/authorized_keys')) {
+    throw 'Standard-user keys must not use the legacy ProgramData path.'
 }
 
 if ($installer -match '-Profile\s+Any' -or $installer -match '-RemoteAddress\s+0\.0\.0\.0/0') {

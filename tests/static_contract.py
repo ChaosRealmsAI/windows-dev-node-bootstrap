@@ -87,6 +87,8 @@ def main() -> int:
         "LocalSubnet",
         "AuthenticationMethods publickey",
         "PasswordAuthentication no",
+        "AuthorizedKeysFile .ssh/authorized_keys",
+        "Get-WindowsDevNodeUserKeyPaths",
         "codexdev",
         "PAIRING REPORT BEGIN",
         "PAIRING REPORT END",
@@ -95,6 +97,11 @@ def main() -> int:
     for fragment in required_contract_fragments:
         if fragment not in contract_text:
             fail(f"missing contract fragment: {fragment}")
+
+    if "AuthorizedKeysFile __PROGRAMDATA__/WindowsDevNode/authorized_keys" in common:
+        fail("standard-user keys must not use the legacy ProgramData path")
+    if "Remove-Item -LiteralPath $userKeyPaths.AuthorizedKeys -Force" not in uninstaller:
+        fail("uninstaller must remove only the exact managed standard-user key")
 
     if "-Profile Any" in installer or re.search(
         r"-RemoteAddress\s+['\"]?0\.0\.0\.0/0", installer, flags=re.IGNORECASE

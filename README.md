@@ -1,6 +1,6 @@
 # Windows Dev Node Bootstrap
 
-Turn one owned Windows 11 PC into a headless, LAN-only development node with one UAC confirmation. The first release establishes a safe SSH control plane; GUI/RDP setup comes only after the real machine passes the SSH smoke.
+Turn one owned Windows 10 or Windows 11 PC into a headless, LAN-only development node with one UAC confirmation. The first release establishes a safe SSH control plane; GUI/RDP setup comes only after the real machine passes the SSH smoke.
 
 ## One-command install
 

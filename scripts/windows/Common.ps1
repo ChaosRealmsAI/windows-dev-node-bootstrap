@@ -4,7 +4,7 @@
 
 Set-StrictMode -Version Latest
 
-$script:WindowsDevNodeVersion = '0.1.2'
+$script:WindowsDevNodeVersion = '0.1.3'
 $script:WindowsDevNodeAccountName = 'codexdev'
 $script:WindowsDevNodeAccountDescription = 'Managed by windows-dev-node-bootstrap'
 $script:WindowsDevNodeFirewallRuleName = 'WindowsDevNode-SSH-In-TCP'
@@ -22,11 +22,78 @@ function Get-WindowsDevNodePaths {
         PublicKey = Join-Path $script:WindowsDevNodeProjectRoot 'config\codex_authorized_key.pub'
         StateRoot = $stateRoot
         State = Join-Path $stateRoot 'state.json'
-        AuthorizedKeys = Join-Path $stateRoot 'authorized_keys'
+        LegacyAuthorizedKeys = Join-Path $stateRoot 'authorized_keys'
         SshConfig = Join-Path $env:ProgramData 'ssh\sshd_config'
         SshConfigBackup = Join-Path $stateRoot 'sshd_config.before-windows-dev-node'
         SshExecutable = Join-Path $env:SystemRoot 'System32\OpenSSH\sshd.exe'
     }
+}
+
+function Get-WindowsDevNodeUserKeyPaths {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)]$User)
+
+    $profileListRoot = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList'
+    $profilesDirectoryValue = (Get-ItemProperty -LiteralPath $profileListRoot -Name 'ProfilesDirectory' -ErrorAction Stop).ProfilesDirectory
+    $profilesDirectory = [Environment]::ExpandEnvironmentVariables([string]$profilesDirectoryValue)
+    $profileRegistryPath = Join-Path $profileListRoot $User.SID.Value
+    $profilePath = $null
+    if (Test-Path -LiteralPath $profileRegistryPath -PathType Container) {
+        $profilePath = (Get-ItemProperty -LiteralPath $profileRegistryPath -Name 'ProfileImagePath' -ErrorAction Stop).ProfileImagePath
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$profilePath)) {
+        $profilePath = Join-Path $profilesDirectory $User.Name
+    }
+
+    $profilesDirectory = [IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables([string]$profilesDirectory))
+    $profilePath = [IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables([string]$profilePath))
+    $profilesPrefix = $profilesDirectory.TrimEnd('\') + '\'
+    if ($profilePath -eq $profilesDirectory -or -not $profilePath.StartsWith($profilesPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'The managed account profile path is outside the Windows profiles directory.'
+    }
+
+    $sshDirectory = Join-Path $profilePath '.ssh'
+    [pscustomobject]@{
+        Profile = $profilePath
+        SshDirectory = $sshDirectory
+        AuthorizedKeys = Join-Path $sshDirectory 'authorized_keys'
+    }
+}
+
+function Test-WindowsDevNodeUserKeyAcl {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$User,
+        [Parameter(Mandatory = $true)]$UserKeyPaths
+    )
+
+    $expectedSids = @($User.SID.Value, 'S-1-5-18', 'S-1-5-32-544')
+    foreach ($path in @($UserKeyPaths.SshDirectory, $UserKeyPaths.AuthorizedKeys)) {
+        if (-not (Test-Path -LiteralPath $path)) { return $false }
+        try {
+            $acl = Get-Acl -LiteralPath $path -ErrorAction Stop
+            if (-not $acl.AreAccessRulesProtected) { return $false }
+            $seenSids = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+            foreach ($rule in $acl.Access) {
+                if ($rule.AccessControlType.ToString() -ne 'Allow') { return $false }
+                try {
+                    $sid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+                }
+                catch {
+                    return $false
+                }
+                if ($sid -notin $expectedSids) { return $false }
+                [void]$seenSids.Add($sid)
+            }
+            foreach ($expectedSid in $expectedSids) {
+                if (-not $seenSids.Contains($expectedSid)) { return $false }
+            }
+        }
+        catch {
+            return $false
+        }
+    }
+    return $true
 }
 
 function Assert-WindowsDevNodeAdministrator {
@@ -108,7 +175,7 @@ function Set-WindowsDevNodeManagedBlock {
         '    AuthenticationMethods publickey'
         '    PubkeyAuthentication yes'
         '    PasswordAuthentication no'
-        '    AuthorizedKeysFile __PROGRAMDATA__/WindowsDevNode/authorized_keys'
+        '    AuthorizedKeysFile .ssh/authorized_keys'
         $script:WindowsDevNodeConfigEnd
         ''
     ) -join [Environment]::NewLine
@@ -140,7 +207,7 @@ function Test-WindowsDevNodeManagedBlock {
         '    AuthenticationMethods publickey'
         '    PubkeyAuthentication yes'
         '    PasswordAuthentication no'
-        '    AuthorizedKeysFile __PROGRAMDATA__/WindowsDevNode/authorized_keys'
+        '    AuthorizedKeysFile .ssh/authorized_keys'
         $script:WindowsDevNodeConfigEnd
     ) -join "`n"
     $actualBlock = $lines[$beginIndexes[0]..$endIndexes[0]] -join "`n"
@@ -176,10 +243,21 @@ function Get-WindowsDevNodeSafeReport {
     $userIsAdministrator = if ($null -ne $user) { Test-WindowsDevNodeAdministratorMembership -User $user } else { $false }
 
     $keyConfigured = $false
-    if ((Test-Path -LiteralPath $paths.AuthorizedKeys -PathType Leaf) -and (Test-Path -LiteralPath $paths.PublicKey -PathType Leaf)) {
-        $keyText = (Get-Content -LiteralPath $paths.AuthorizedKeys -Raw).Trim()
-        $expectedKeyText = (Get-Content -LiteralPath $paths.PublicKey -Raw).Trim()
-        $keyConfigured = $keyText -ceq $expectedKeyText
+    $keyAclSecure = $false
+    if ($null -ne $user -and (Test-Path -LiteralPath $paths.PublicKey -PathType Leaf)) {
+        try {
+            $userKeyPaths = Get-WindowsDevNodeUserKeyPaths -User $user
+            if (Test-Path -LiteralPath $userKeyPaths.AuthorizedKeys -PathType Leaf) {
+                $keyText = (Get-Content -LiteralPath $userKeyPaths.AuthorizedKeys -Raw).Trim()
+                $expectedKeyText = (Get-Content -LiteralPath $paths.PublicKey -Raw).Trim()
+                $keyConfigured = $keyText -ceq $expectedKeyText
+                $keyAclSecure = Test-WindowsDevNodeUserKeyAcl -User $user -UserKeyPaths $userKeyPaths
+            }
+        }
+        catch {
+            $keyConfigured = $false
+            $keyAclSecure = $false
+        }
     }
 
     $configManaged = $false
@@ -224,6 +302,8 @@ function Get-WindowsDevNodeSafeReport {
     if ($null -eq $user -or -not $user.Enabled) { $reasons.Add('managed account is missing or disabled') }
     if ($userIsAdministrator) { $reasons.Add('managed account has administrator membership') }
     if (-not $keyConfigured) { $reasons.Add('authorized public key is missing or invalid') }
+    if (-not $keyAclSecure) { $reasons.Add('managed user SSH key ACL is not secure') }
+    if (Test-Path -LiteralPath $paths.LegacyAuthorizedKeys) { $reasons.Add('legacy ProgramData authorized_keys still exists') }
     if (-not $configManaged) { $reasons.Add('managed sshd configuration is missing') }
     if (-not $firewallScoped) { $reasons.Add('managed firewall rule is not Private and LocalSubnet only') }
     if (-not $inboxFirewallRuleDisabled) { $reasons.Add('the broad in-box OpenSSH firewall rule is enabled') }
@@ -244,7 +324,7 @@ function Get-WindowsDevNodeSafeReport {
         architecture = $architecture
         managedAccount = $script:WindowsDevNodeAccountName
         accountPrivilege = if ($null -eq $user) { 'missing' } elseif ($userIsAdministrator) { 'unexpected-administrator' } else { 'standard-user' }
-        authentication = if ($keyConfigured -and $configManaged) { 'publickey-only-for-managed-account' } else { 'not-ready' }
+        authentication = if ($keyConfigured -and $keyAclSecure -and $configManaged) { 'publickey-only-for-managed-account' } else { 'not-ready' }
         sshService = $serviceStatus
         sshStartup = $startMode
         sshPort = 22

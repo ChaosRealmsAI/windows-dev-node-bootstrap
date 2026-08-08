@@ -119,6 +119,7 @@ try {
         sshServiceExistedBefore = $serviceExistedBefore
         sshServiceWasRunning = $serviceWasRunning
         sshServicePreviousStartMode = $servicePreviousStartMode
+        authorizedKeysPath = [string](Get-OptionalStateValue -State $previousState -Name 'authorizedKeysPath' -DefaultValue '')
         installedAtUtc = $installedAtUtc
         lastRepairedAtUtc = [DateTime]::UtcNow.ToString('o')
     }
@@ -219,6 +220,9 @@ try {
         Enable-LocalUser -Name $script:WindowsDevNodeAccountName
     }
 
+    & net.exe user $script:WindowsDevNodeAccountName '/passwordreq:yes' | Out-Null
+    Assert-LastNativeCommand -Operation 'Requiring a password on the managed local account'
+
     $administrators = Get-LocalGroup -SID 'S-1-5-32-544'
     $administratorMember = Get-LocalGroupMember -Group $administrators.Name -ErrorAction SilentlyContinue |
         Where-Object { $_.SID.Value -eq $account.SID.Value }
@@ -228,12 +232,45 @@ try {
 
     Write-Output '[INSTALL 5/7] Installing the dedicated SSH public key...'
     $accountSid = $account.SID.Value
-    & icacls.exe $paths.StateRoot /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "*$($accountSid):(OI)(CI)RX" | Out-Null
-    Assert-LastNativeCommand -Operation 'Securing the managed state directory'
+    $accountOwner = $account.SID.Translate([Security.Principal.NTAccount]).Value
+    $userKeyPaths = Get-WindowsDevNodeUserKeyPaths -User $account
+    $profileDirectoryCreated = -not (Test-Path -LiteralPath $userKeyPaths.Profile -PathType Container)
+    if ((Test-Path -LiteralPath $userKeyPaths.Profile) -and
+        ((Get-Item -LiteralPath $userKeyPaths.Profile -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw 'The managed account profile path is a reparse point and will not be modified.'
+    }
+    if ($profileDirectoryCreated) {
+        New-Item -ItemType Directory -Path $userKeyPaths.Profile -Force | Out-Null
+        & icacls.exe $userKeyPaths.Profile /grant:r "*$($accountSid):(OI)(CI)F" | Out-Null
+        Assert-LastNativeCommand -Operation 'Granting the managed account access to its profile directory'
+        & icacls.exe $userKeyPaths.Profile /setowner $accountOwner | Out-Null
+        Assert-LastNativeCommand -Operation 'Setting the managed account profile owner'
+    }
+    if ((Test-Path -LiteralPath $userKeyPaths.SshDirectory) -and
+        ((Get-Item -LiteralPath $userKeyPaths.SshDirectory -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw 'The managed account .ssh path is a reparse point and will not be modified.'
+    }
+    if (Test-Path -LiteralPath $userKeyPaths.AuthorizedKeys -PathType Leaf) {
+        $existingUserKey = (Get-Content -LiteralPath $userKeyPaths.AuthorizedKeys -Raw).Trim()
+        if ($existingUserKey -cne $publicKey) {
+            throw 'The managed account already has a different authorized_keys file. The installer will not overwrite it.'
+        }
+    }
 
-    Write-WindowsDevNodeUtf8NoBom -Path $paths.AuthorizedKeys -Content ($publicKey + [Environment]::NewLine)
-    & icacls.exe $paths.AuthorizedKeys /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' "*$($accountSid):R" | Out-Null
-    Assert-LastNativeCommand -Operation 'Securing the authorized_keys file'
+    New-Item -ItemType Directory -Path $userKeyPaths.SshDirectory -Force | Out-Null
+    & icacls.exe $userKeyPaths.SshDirectory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "*$($accountSid):(OI)(CI)F" | Out-Null
+    Assert-LastNativeCommand -Operation 'Securing the managed account .ssh directory'
+    & icacls.exe $userKeyPaths.SshDirectory /setowner $accountOwner | Out-Null
+    Assert-LastNativeCommand -Operation 'Setting the managed account .ssh owner'
+
+    Write-WindowsDevNodeUtf8NoBom -Path $userKeyPaths.AuthorizedKeys -Content ($publicKey + [Environment]::NewLine)
+    & icacls.exe $userKeyPaths.AuthorizedKeys /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' "*$($accountSid):F" | Out-Null
+    Assert-LastNativeCommand -Operation 'Securing the managed account authorized_keys file'
+    & icacls.exe $userKeyPaths.AuthorizedKeys /setowner $accountOwner | Out-Null
+    Assert-LastNativeCommand -Operation 'Setting the managed account authorized_keys owner'
+
+    $state.authorizedKeysPath = $userKeyPaths.AuthorizedKeys
+    Save-WindowsDevNodeInstallState -Path $paths.State -State $state
 
     Write-Output '[INSTALL 6/7] Applying and validating key-only SSH configuration...'
     if (-not (Test-Path -LiteralPath $paths.SshConfig -PathType Leaf)) {
@@ -271,6 +308,14 @@ try {
     for ($attempt = 0; $attempt -lt 20 -and $null -eq $listening; $attempt++) {
         Start-Sleep -Milliseconds 250
         $listening = Get-NetTCPConnection -State Listen -LocalPort 22 -ErrorAction SilentlyContinue
+    }
+
+    if (Test-Path -LiteralPath $paths.LegacyAuthorizedKeys -PathType Leaf) {
+        $legacyKey = (Get-Content -LiteralPath $paths.LegacyAuthorizedKeys -Raw).Trim()
+        if ($legacyKey -cne $publicKey) {
+            throw 'The legacy ProgramData authorized_keys file was modified and was not removed.'
+        }
+        Remove-Item -LiteralPath $paths.LegacyAuthorizedKeys -Force
     }
 
     Save-WindowsDevNodeInstallState -Path $paths.State -State $state
