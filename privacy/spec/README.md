@@ -6,8 +6,8 @@ An owner downloads or clones this project on a Windows 11 development machine, r
 
 ## User path
 
-1. The owner clones the repository or extracts its GitHub source ZIP.
-2. The owner runs `install.cmd` and confirms Windows UAC.
+1. The owner runs the documented short PowerShell bootstrap, clones the repository, or extracts its GitHub source ZIP.
+2. The bootstrap opens the same checked-in installer, or the owner runs `install.cmd`, and the owner confirms Windows UAC.
 3. The installer validates its bundled public key, installs the Windows OpenSSH optional capability when absent, creates or reuses only the project-owned `codexdev` standard account, and configures key-only authentication for that account.
 4. The installer narrows inbound SSH to `LocalSubnet` on a Private network profile, starts `sshd`, and sets it to Automatic.
 5. The installer validates `sshd_config`, verifies the listener and managed resources, then prints only the delimited `PAIRING REPORT`.
@@ -43,6 +43,6 @@ An owner downloads or clones this project on a Windows 11 development machine, r
 
 ## Version and non-goals
 
-- Contract version: `0.1.0`.
+- Contract version: `0.1.1`.
 - Target: an owner-operated Windows 11 machine on a trusted private LAN.
 - RDP/GUI control, WSL2, Codex installation, Wake-on-LAN, public internet access, and automatic sign-in are separate follow-up slices after SSH bootstrap is proven on the real machine.

@@ -2,6 +2,16 @@
 
 Turn one owned Windows 11 PC into a headless, LAN-only development node with one UAC confirmation. The first release establishes a safe SSH control plane; GUI/RDP setup comes only after the real machine passes the SSH smoke.
 
+## One-command install
+
+Open PowerShell, paste this command, and approve Windows UAC:
+
+```powershell
+irm 'https://raw.githubusercontent.com/ChaosRealmsAI/windows-dev-node-bootstrap/main/bootstrap.ps1' | iex
+```
+
+The Administrator window stays open and prints the final pairing report or an actionable error.
+
 ## What it does
 
 - Installs the built-in Windows OpenSSH Server capability when needed.

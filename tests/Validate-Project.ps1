@@ -12,6 +12,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $requiredFiles = @(
     'AGENTS.md',
     'README.md',
+    'bootstrap.ps1',
     'install.cmd',
     'diagnose.cmd',
     'uninstall.cmd',
@@ -32,7 +33,11 @@ foreach ($relativePath in $requiredFiles) {
 }
 
 $parseFailures = New-Object System.Collections.Generic.List[string]
-Get-ChildItem -LiteralPath (Join-Path $projectRoot 'scripts') -Filter '*.ps1' -Recurse | ForEach-Object {
+$powerShellScripts = @(
+    Get-ChildItem -LiteralPath (Join-Path $projectRoot 'scripts') -Filter '*.ps1' -Recurse
+    Get-Item -LiteralPath (Join-Path $projectRoot 'bootstrap.ps1')
+)
+$powerShellScripts | ForEach-Object {
     $tokens = $null
     $errors = $null
     [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors)
@@ -75,6 +80,18 @@ foreach ($requiredFragment in @(
 
 if ($installer -match '-Profile\s+Any' -or $installer -match '-RemoteAddress\s+0\.0\.0\.0/0') {
     throw 'A broad inbound network scope is forbidden.'
+}
+
+$bootstrap = Get-Content -LiteralPath (Join-Path $projectRoot 'bootstrap.ps1') -Raw
+foreach ($requiredFragment in @(
+    'windows-dev-node-bootstrap/archive/refs/heads/main.zip',
+    '[guid]::NewGuid()',
+    '-NoExit',
+    '-Verb RunAs'
+)) {
+    if ($bootstrap -notmatch [regex]::Escape($requiredFragment)) {
+        throw "Missing bootstrap contract fragment: $requiredFragment"
+    }
 }
 
 . (Join-Path $projectRoot 'scripts/windows/Common.ps1')

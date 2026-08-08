@@ -31,6 +31,7 @@ def main() -> int:
         "AGENTS.md",
         "LICENSE",
         "README.md",
+        "bootstrap.ps1",
         "install.cmd",
         "diagnose.cmd",
         "uninstall.cmd",
@@ -72,6 +73,7 @@ def main() -> int:
             fail(f"private-key material marker found: {marker}")
 
     common = read("scripts/windows/Common.ps1")
+    bootstrap = read("bootstrap.ps1")
     installer = read("scripts/windows/Install-WindowsDevNode.ps1")
     uninstaller = read("scripts/windows/Uninstall-WindowsDevNode.ps1")
     install_launcher = read("install.cmd")
@@ -103,6 +105,18 @@ def main() -> int:
         fail("uninstaller must use the exact managed state path")
     if "Remove-WindowsCapability" in uninstaller:
         fail("uninstaller must preserve the shared OpenSSH capability")
+
+    for fragment in (
+        "windows-dev-node-bootstrap/archive/refs/heads/main.zip",
+        "[guid]::NewGuid()",
+        "-NoExit",
+        "-Verb RunAs",
+        "Start-Process",
+    ):
+        if fragment not in bootstrap:
+            fail(f"bootstrap is missing required fragment: {fragment}")
+    if "Remove-Item" in bootstrap:
+        fail("bootstrap must not recursively replace or delete a shared temporary path")
 
     for name, launcher in (
         ("install.cmd", install_launcher),

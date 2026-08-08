@@ -4,7 +4,7 @@ This project turns one owned Windows 11 machine into a LAN-only development node
 
 ## Boundaries
 
-- `install.cmd`, `diagnose.cmd`, and `uninstall.cmd` are the stable user entry points.
+- `bootstrap.ps1`, `install.cmd`, `diagnose.cmd`, and `uninstall.cmd` are the stable user entry points.
 - Windows implementation scripts live under `scripts/windows/`; validation scripts live under `tests/`.
 - Never commit a private key, password, token, device address, MAC address, serial number, or raw machine report.
 - The managed account stays a standard local user. Administrator access, RDP, WSL, public-network exposure, and third-party remote-control software are outside v0.1.
@@ -38,6 +38,7 @@ On an owned Windows 11 test machine:
 ## Acceptance
 
 1. `install.cmd` requests one normal UAC confirmation and ends with a delimited `PAIRING REPORT` whose status is `READY`.
+   The documented `irm ... | iex` bootstrap must reach that same installer without requiring a long pasted command.
 2. Only TCP 22 from `LocalSubnet` on a Private network profile reaches `sshd`.
 3. `codexdev` is enabled, is not an administrator, and accepts the committed public key while rejecting password authentication.
 4. After a Windows reboot with the monitor disconnected, SSH key login, command execution, and file transfer still work.

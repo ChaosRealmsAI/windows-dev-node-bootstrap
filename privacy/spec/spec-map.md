@@ -5,6 +5,7 @@
 | Product result, user path, security invariants, managed resources | `privacy/spec/README.md` |
 | Stable commands, repository boundaries, acceptance | `AGENTS.md` |
 | Human setup and recovery instructions | `README.md` |
+| Short remote PowerShell entry | `bootstrap.ps1` |
 | Public client identity | `config/codex_authorized_key.pub` |
 | Shared constants, managed block, safe report | `scripts/windows/Common.ps1` |
 | Installation and repair | `scripts/windows/Install-WindowsDevNode.ps1` |
