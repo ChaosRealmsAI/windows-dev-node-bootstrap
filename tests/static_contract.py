@@ -74,6 +74,7 @@ def main() -> int:
 
     common = read("scripts/windows/Common.ps1")
     bootstrap = read("bootstrap.ps1")
+    readme = read("README.md")
     installer = read("scripts/windows/Install-WindowsDevNode.ps1")
     uninstaller = read("scripts/windows/Uninstall-WindowsDevNode.ps1")
     install_launcher = read("install.cmd")
@@ -109,6 +110,9 @@ def main() -> int:
     for fragment in (
         "windows-dev-node-bootstrap/archive/refs/heads/main.zip",
         "[guid]::NewGuid()",
+        "[BOOTSTRAP 1/4]",
+        "[BOOTSTRAP 4/4]",
+        "-TimeoutSec 60",
         "-NoExit",
         "-Verb RunAs",
         "Start-Process",
@@ -117,6 +121,12 @@ def main() -> int:
             fail(f"bootstrap is missing required fragment: {fragment}")
     if "Remove-Item" in bootstrap:
         fail("bootstrap must not recursively replace or delete a shared temporary path")
+    if "[INSTALL 1/7]" not in installer or "[INSTALL 7/7]" not in installer:
+        fail("installer must show bounded step-by-step progress")
+    if "Write-Host '[START] Downloading bootstrap...'" not in readme:
+        fail("README one-line command must show progress before its first network request")
+    if "bootstrap.ps1' -TimeoutSec 60 | iex" not in readme:
+        fail("README one-line bootstrap request must have a timeout")
 
     for name, launcher in (
         ("install.cmd", install_launcher),

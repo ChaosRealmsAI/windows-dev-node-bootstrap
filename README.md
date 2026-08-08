@@ -7,10 +7,10 @@ Turn one owned Windows 11 PC into a headless, LAN-only development node with one
 Open PowerShell, paste this command, and approve Windows UAC:
 
 ```powershell
-irm 'https://raw.githubusercontent.com/ChaosRealmsAI/windows-dev-node-bootstrap/main/bootstrap.ps1' | iex
+Write-Host '[START] Downloading bootstrap...'; irm 'https://raw.githubusercontent.com/ChaosRealmsAI/windows-dev-node-bootstrap/main/bootstrap.ps1' -TimeoutSec 60 | iex
 ```
 
-The Administrator window stays open and prints the final pairing report or an actionable error.
+The current window immediately shows download/extraction progress. The Administrator window then stays open and prints seven installation steps followed by the pairing report or an actionable error.
 
 ## What it does
 

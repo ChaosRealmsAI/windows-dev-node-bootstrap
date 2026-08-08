@@ -9,6 +9,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
+Write-Host '[BOOTSTRAP 1/4] Started.' -ForegroundColor Cyan
+
 if ($env:OS -ne 'Windows_NT') {
     throw 'Windows Dev Node Bootstrap must run on Windows.'
 }
@@ -21,7 +23,9 @@ $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('windows-dev-node-' + [gu
 $archivePath = Join-Path $temporaryRoot 'source.zip'
 New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
 
-Invoke-WebRequest -UseBasicParsing -Uri $archiveUri -OutFile $archivePath
+Write-Host '[BOOTSTRAP 2/4] Downloading the current project...'
+Invoke-WebRequest -UseBasicParsing -Uri $archiveUri -OutFile $archivePath -TimeoutSec 60
+Write-Host '[BOOTSTRAP 3/4] Extracting the project...'
 Expand-Archive -Path $archivePath -DestinationPath $temporaryRoot -Force
 
 $installerPath = Join-Path $temporaryRoot 'windows-dev-node-bootstrap-main\scripts\windows\Install-WindowsDevNode.ps1'
@@ -48,5 +52,6 @@ $argumentList = @(
     $installerArgument
 ) -join ' '
 
+Write-Host '[BOOTSTRAP 4/4] Requesting Administrator access...'
 Start-Process -FilePath $windowsPowerShell -Verb RunAs -ArgumentList $argumentList | Out-Null
-Write-Output 'Approve the Windows UAC prompt. Installation continues in the new Administrator window.'
+Write-Host 'Approve the Windows UAC prompt. Installation continues with visible logs in the new window.' -ForegroundColor Green

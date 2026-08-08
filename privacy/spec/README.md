@@ -43,6 +43,6 @@ An owner downloads or clones this project on a Windows 11 development machine, r
 
 ## Version and non-goals
 
-- Contract version: `0.1.1`.
+- Contract version: `0.1.2`.
 - Target: an owner-operated Windows 11 machine on a trusted private LAN.
 - RDP/GUI control, WSL2, Codex installation, Wake-on-LAN, public internet access, and automatic sign-in are separate follow-up slices after SSH bootstrap is proven on the real machine.

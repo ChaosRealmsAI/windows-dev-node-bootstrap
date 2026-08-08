@@ -83,14 +83,27 @@ if ($installer -match '-Profile\s+Any' -or $installer -match '-RemoteAddress\s+0
 }
 
 $bootstrap = Get-Content -LiteralPath (Join-Path $projectRoot 'bootstrap.ps1') -Raw
+$readme = Get-Content -LiteralPath (Join-Path $projectRoot 'README.md') -Raw
 foreach ($requiredFragment in @(
     'windows-dev-node-bootstrap/archive/refs/heads/main.zip',
     '[guid]::NewGuid()',
+    '[BOOTSTRAP 1/4]',
+    '[BOOTSTRAP 4/4]',
+    '-TimeoutSec 60',
     '-NoExit',
     '-Verb RunAs'
 )) {
     if ($bootstrap -notmatch [regex]::Escape($requiredFragment)) {
         throw "Missing bootstrap contract fragment: $requiredFragment"
+    }
+}
+
+foreach ($requiredFragment in @(
+    "Write-Host '[START] Downloading bootstrap...'",
+    "bootstrap.ps1' -TimeoutSec 60 | iex"
+)) {
+    if (-not $readme.Contains($requiredFragment)) {
+        throw "README one-line command is missing required fragment: $requiredFragment"
     }
 }
 

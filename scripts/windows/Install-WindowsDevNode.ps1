@@ -48,6 +48,7 @@ function Save-WindowsDevNodeInstallState {
 
 try {
     Assert-WindowsDevNodeAdministrator
+    Write-Output '[INSTALL 1/7] Checking project state and ownership...'
     $paths = Get-WindowsDevNodePaths
     $previousState = Get-WindowsDevNodeState
     if ((Test-Path -LiteralPath $paths.StateRoot) -and $null -eq $previousState) {
@@ -127,11 +128,12 @@ try {
     Assert-LastNativeCommand -Operation 'Securing the managed state directory'
     Save-WindowsDevNodeInstallState -Path $paths.State -State $state
 
+    Write-Output '[INSTALL 2/7] Ensuring Windows OpenSSH Server is installed...'
     if ($capabilityBefore.State -ne 'Installed') {
-        Write-Output 'Installing the Windows OpenSSH Server capability...'
         Add-WindowsCapability -Online -Name $capabilityName | Out-Null
     }
 
+    Write-Output '[INSTALL 3/7] Configuring the Private LAN and firewall scope...'
     $inboxRule = Get-NetFirewallRule -Name $inboxFirewallRuleName -ErrorAction SilentlyContinue
     if ($null -ne $inboxRule) {
         Disable-NetFirewallRule -Name $inboxFirewallRuleName
@@ -182,6 +184,7 @@ try {
         -LocalPort 22 `
         -RemoteAddress LocalSubnet | Out-Null
 
+    Write-Output '[INSTALL 4/7] Configuring the SSH service and standard account...'
     Set-Service -Name sshd -StartupType Automatic
     Start-Service -Name sshd
 
@@ -223,6 +226,7 @@ try {
         Remove-LocalGroupMember -Group $administrators.Name -Member $account.Name
     }
 
+    Write-Output '[INSTALL 5/7] Installing the dedicated SSH public key...'
     $accountSid = $account.SID.Value
     & icacls.exe $paths.StateRoot /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "*$($accountSid):(OI)(CI)RX" | Out-Null
     Assert-LastNativeCommand -Operation 'Securing the managed state directory'
@@ -231,6 +235,7 @@ try {
     & icacls.exe $paths.AuthorizedKeys /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' "*$($accountSid):R" | Out-Null
     Assert-LastNativeCommand -Operation 'Securing the authorized_keys file'
 
+    Write-Output '[INSTALL 6/7] Applying and validating key-only SSH configuration...'
     if (-not (Test-Path -LiteralPath $paths.SshConfig -PathType Leaf)) {
         Restart-Service -Name sshd
     }
@@ -270,6 +275,7 @@ try {
 
     Save-WindowsDevNodeInstallState -Path $paths.State -State $state
 
+    Write-Output '[INSTALL 7/7] Verifying final readiness...'
     $report = Get-WindowsDevNodeSafeReport
     Write-WindowsDevNodePairingReport -Report $report
     if ($report.status -ne 'READY') {

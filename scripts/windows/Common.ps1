@@ -4,7 +4,7 @@
 
 Set-StrictMode -Version Latest
 
-$script:WindowsDevNodeVersion = '0.1.1'
+$script:WindowsDevNodeVersion = '0.1.2'
 $script:WindowsDevNodeAccountName = 'codexdev'
 $script:WindowsDevNodeAccountDescription = 'Managed by windows-dev-node-bootstrap'
 $script:WindowsDevNodeFirewallRuleName = 'WindowsDevNode-SSH-In-TCP'
