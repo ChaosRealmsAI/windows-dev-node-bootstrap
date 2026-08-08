@@ -1,0 +1,11 @@
+# Purpose: Keep generated packages and local validation output out of Git.
+# Usage: Git applies this file automatically.
+# Notes: The project must never store private keys or machine reports.
+
+.tmp/
+artifacts/
+*.zip
+*.log
+pairing-report*.json
+*_ed25519
+*_rsa

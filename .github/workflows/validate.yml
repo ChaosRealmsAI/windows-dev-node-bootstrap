@@ -1,0 +1,21 @@
+name: validate
+
+on: [push, pull_request]
+
+jobs:
+  portable-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tests/static_contract.py
+
+  powershell-contract:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Windows PowerShell 5.1 contract
+        shell: powershell
+        run: ./tests/Validate-Project.ps1
+      - name: PowerShell 7 contract
+        shell: pwsh
+        run: ./tests/Validate-Project.ps1
